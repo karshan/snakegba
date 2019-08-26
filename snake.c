@@ -1,22 +1,15 @@
-//
-// first.c
-// "Hello World" equivalent
-//
-// (20030901 - 20060211, cearn)
-// === NOTES ===
-// * You are not expected to understand this. Check second.c for
-//   a more proper version.
-
+#include "tonc.h"
 
 int main()
 {
-	*(unsigned int*)0x04000000= 0x0403;
+    REG_DISPCNT = DCNT_MODE4 | DCNT_BG2;
 
-	((unsigned short*)0x06000000)[120+80*240]= 0x001F;
-	((unsigned short*)0x06000000)[136+80*240]= 0x03E0;
-	((unsigned short*)0x06000000)[120+96*240]= 0x7C00;
+    pal_bg_mem[0] = RGB15(0, 0, 0);
+    pal_bg_mem[1] = RGB15(31, 31, 31);
 
-	while(1);
+    m4_rect(20, 20, 50, 50, 1);
+    vid_flip();
 
-	return 0;
+    while(1);
+    return 0;
 }

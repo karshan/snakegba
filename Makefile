@@ -3,8 +3,8 @@ CC      := $(PREFIX)gcc
 LD      := $(PREFIX)gcc
 OBJCOPY := $(PREFIX)objcopy
 
-CFLAGS  := -mthumb-interwork -mthumb -O2 -Wall -fno-strict-aliasing
-LDFLAGS := -mthumb-interwork -mthumb -specs=gba.specs
+CFLAGS  := -mthumb-interwork -mthumb -O2 -Wall -fno-strict-aliasing -I/home/karshan/Downloads/code/tonclib/include
+LDFLAGS := -mthumb-interwork -mthumb -specs=gba.specs /home/karshan/Downloads/code/tonclib/lib/libtonc.a
 
 TARGET := snake
 OBJS   := snake.o
