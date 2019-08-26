@@ -7,19 +7,25 @@ enum dir {
     down
 };
 
+typedef struct {
+    int dir;
+    int len;
+} tail_chunk;
+
 struct {
     int x;
     int y;
-    int len;
-    u8 dir;
-    u8 tail[256];
+    int dir;
+    tail_chunk tail[256];
 } snake;
 
+#define MAP_WIDTH  48
+#define MAP_HEIGHT 32
+
 void init_snake() {
-    snake.x = 20;
-    snake.y = 20;
-    snake.len = 1;
-    snake.dir = up;
+    snake.x = 24;
+    snake.y = 16;
+    snake.dir = left;
 }
 
 void init_timers() {
@@ -28,9 +34,41 @@ void init_timers() {
     REG_TM2CNT = TM_FREQ_1024 | TM_ENABLE;
 }
 
-volatile int ticktock = 0;
 void tick() {
-    ticktock ^= 1;
+    // clear snake
+    M4_CLEAR();
+
+    // move snake
+    switch (snake.dir) {
+        case up:
+            snake.y = snake.y - 1;
+            if (snake.y < 0) {
+                snake.y = MAP_HEIGHT - 1;
+            }
+            break;
+        case down:
+            snake.y = snake.y + 1;
+            if (snake.y >= MAP_HEIGHT) {
+                snake.y = 0;
+            }
+            break;
+        case right:
+            snake.x = snake.x + 1;
+            if (snake.x >= MAP_WIDTH) {
+                snake.x = 0;
+            }
+            break;
+        case left:
+            snake.x = snake.x - 1;
+            if (snake.x < 0) {
+                snake.x = MAP_WIDTH - 1;
+            }
+            break;
+    }
+
+    // draw snake
+    m4_rect(snake.x * 5, snake.y * 5, (snake.x + 1) * 5, (snake.y + 1) * 5, 1);
+    vid_flip();
 }
 
 int main()
@@ -39,6 +77,7 @@ int main()
 
     pal_bg_mem[0] = RGB15(0, 0, 0);
     pal_bg_mem[1] = RGB15(31, 31, 31);
+    pal_bg_mem[2] = RGB15(31, 0, 0);
 
     init_snake();
     init_timers();
@@ -46,14 +85,6 @@ int main()
     irq_add(II_TIMER2, tick);
     irq_enable(II_TIMER2);
 
-    while(1) {
-        vid_vsync();
-        int l = 20 * ticktock;
-        int cl = 20 * (ticktock ^ 1);
-        m4_rect(l, 20, l + 30, 50, 1);
-        m4_rect(cl, 20, cl + 30, 50, 0);
-        vid_flip();
-    }
-
+    while(1);
     return 0;
 }
