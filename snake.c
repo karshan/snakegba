@@ -1,41 +1,64 @@
 #include "tonc.h"
+#define BOX(x, y, c) m4_rect(x * 5, y * 5, (x + 1) * 5, (y + 1) * 5, c)
+#define MAP_WIDTH  48
+#define MAP_HEIGHT 32
 
-enum dir {
+typedef enum {
     left,
     right,
     up,
     down
-};
+} dir;
 
 typedef struct {
-    int dir;
-    int len;
-} tail_chunk;
-
-volatile struct {
     int x;
     int y;
+} point;
+
+void move(point *p, dir d) {
+    switch(d) {
+        case left:
+            p->x = p->x - 1;
+            if (p->x < 0) p->x = MAP_WIDTH - 1;
+            break;
+        case right:
+            p->x = p->x + 1;
+            if (p->x >= MAP_WIDTH) p->x = 0;
+            break;
+        case up:
+            p->y = p->y - 1;
+            if (p->y < 0) p->y = MAP_HEIGHT - 1;
+            break;
+        case down:
+            p->y = p->y + 1;
+            if (p->y >= MAP_HEIGHT) p->y = 0;
+            break;
+    }
+}
+
+volatile struct {
     int dir;
-    tail_chunk tail[256];
+    int idir; // last input
+    point head;
+    int n; // sizeof tail
+    point tail[256];
 } snake;
 
-volatile struct {
-    int x;
-    int y;
-} fruit;
+volatile point fruit;
 
-#define MAP_WIDTH  48
-#define MAP_HEIGHT 32
-
-void init_game() {
-    snake.x = 24;
-    snake.y = 16;
-    snake.dir = left;
-
+void new_fruit() {
     do {
         fruit.x = qran_range(0, MAP_WIDTH);
         fruit.y = qran_range(0, MAP_HEIGHT);
-    } while (fruit.x == snake.x && fruit.y == snake.y);
+    } while (fruit.x == snake.head.x && fruit.y == snake.head.y);
+}
+
+void init_game() {
+    snake.head.x = 24;
+    snake.head.y = 16;
+    snake.dir = left;
+    snake.n = 0;
+    new_fruit();
 }
 
 void init_timers() {
@@ -45,56 +68,52 @@ void init_timers() {
 }
 
 void key() {
-    if (KEY_DOWN_NOW(KEY_LEFT)) {
-        snake.dir = left;
+    if (KEY_DOWN_NOW(KEY_LEFT) && snake.dir != right) {
+        snake.idir = left;
         return;
-    } if (KEY_DOWN_NOW(KEY_UP)) {
-        snake.dir = up;
+    } if (KEY_DOWN_NOW(KEY_UP) && snake.dir != down) {
+        snake.idir = up;
         return;
-    } if (KEY_DOWN_NOW(KEY_RIGHT)) {
-        snake.dir = right;
+    } if (KEY_DOWN_NOW(KEY_RIGHT) && snake.dir != left) {
+        snake.idir = right;
         return;
-    } if (KEY_DOWN_NOW(KEY_DOWN)) {
-        snake.dir = down;
+    } if (KEY_DOWN_NOW(KEY_DOWN) && snake.dir != up) {
+        snake.idir = down;
         return;
     }
 }
 
+int eating = 0;
 void tick() {
-    // clear snake
+    int i;
+
+    snake.dir = snake.idir;
+
     M4_CLEAR();
 
     // move snake
-    switch (snake.dir) {
-        case up:
-            snake.y = snake.y - 1;
-            if (snake.y < 0) {
-                snake.y = MAP_HEIGHT - 1;
-            }
-            break;
-        case down:
-            snake.y = snake.y + 1;
-            if (snake.y >= MAP_HEIGHT) {
-                snake.y = 0;
-            }
-            break;
-        case right:
-            snake.x = snake.x + 1;
-            if (snake.x >= MAP_WIDTH) {
-                snake.x = 0;
-            }
-            break;
-        case left:
-            snake.x = snake.x - 1;
-            if (snake.x < 0) {
-                snake.x = MAP_WIDTH - 1;
-            }
-            break;
+    if (eating == 1) {
+        snake.n++;
+        eating = 0;
+    }
+    for (i = snake.n - 1; i > 0; i--) {
+        snake.tail[i] = snake.tail[i - 1];
+    }
+    snake.tail[0] = snake.head;
+    move(&snake.head, snake.dir);
+
+    if (snake.head.x == fruit.x && snake.head.y == fruit.y) {
+        new_fruit();
+        eating = 1;
     }
 
     // draw snake and fruit
-    m4_rect(snake.x * 5, snake.y * 5, (snake.x + 1) * 5, (snake.y + 1) * 5, 1);
-    m4_rect(fruit.x * 5, fruit.y * 5, (fruit.x + 1) * 5, (fruit.y + 1) * 5, 2);
+    BOX(snake.head.x, snake.head.y, 1);
+    for (i = 0; i < snake.n; i++) {
+        BOX(snake.tail[i].x, snake.tail[i].y, 1);
+    }
+    BOX(fruit.x, fruit.y, 2);
+
     vid_flip();
 }
 
