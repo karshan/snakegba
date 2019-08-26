@@ -1,0 +1,3 @@
+[submodule "tonclib"]
+	path = tonclib
+	url = git@github.com:karshan/tonclib
