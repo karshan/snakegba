@@ -12,14 +12,14 @@ typedef struct {
     int len;
 } tail_chunk;
 
-struct {
+volatile struct {
     int x;
     int y;
     int dir;
     tail_chunk tail[256];
 } snake;
 
-struct {
+volatile struct {
     int x;
     int y;
 } fruit;
@@ -42,6 +42,22 @@ void init_timers() {
     // ~0.5s timer
     REG_TM2D = -0x2000;
     REG_TM2CNT = TM_FREQ_1024 | TM_ENABLE;
+}
+
+void key() {
+    if (KEY_DOWN_NOW(KEY_LEFT)) {
+        snake.dir = left;
+        return;
+    } if (KEY_DOWN_NOW(KEY_UP)) {
+        snake.dir = up;
+        return;
+    } if (KEY_DOWN_NOW(KEY_RIGHT)) {
+        snake.dir = right;
+        return;
+    } if (KEY_DOWN_NOW(KEY_DOWN)) {
+        snake.dir = down;
+        return;
+    }
 }
 
 void tick() {
@@ -121,6 +137,9 @@ int main()
     irq_init(isr_master);
     irq_add(II_TIMER2, tick);
     irq_enable(II_TIMER2);
+    irq_add(II_KEYPAD, key);
+    REG_KEYCNT = KCNT_OR | KEY_DIR;
+    irq_enable(II_KEYPAD); // TODO ensure this is lower prio than timer
 
     while(1);
     return 0;
