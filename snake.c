@@ -1,7 +1,16 @@
+#include "string.h"
 #include "tonc.h"
 #define BOX(x, y, c) m4_rect(x * 5, y * 5, (x + 1) * 5, (y + 1) * 5, c)
 #define MAP_WIDTH  48
 #define MAP_HEIGHT 32
+
+// usage: debugf(); tte_printf("something: %d", something); while(1);
+void debugf() {
+    REG_DISPCNT= DCNT_MODE0 | DCNT_BG0;
+    tte_init_se_default(0, BG_CBB(0)|BG_SBB(31));
+    tte_init_con();
+    tte_printf("#{P:72,64}");
+}
 
 typedef enum {
     left,
@@ -41,7 +50,7 @@ volatile struct {
     int idir; // last input
     point head;
     int n; // sizeof tail
-    point tail[256];
+    point tail[1024];
 } snake;
 
 volatile point fruit;
@@ -83,7 +92,12 @@ void key() {
     }
 }
 
-int eating = 0;
+void death() {
+    debugf();
+    tte_printf("DEATH");
+    while(1);
+}
+
 void tick() {
     int i;
 
@@ -92,26 +106,30 @@ void tick() {
     M4_CLEAR();
 
     // move snake
-    if (eating == 1) {
-        snake.n++;
-        eating = 0;
-    }
     for (i = snake.n - 1; i > 0; i--) {
         snake.tail[i] = snake.tail[i - 1];
     }
     snake.tail[0] = snake.head;
     move(&snake.head, snake.dir);
 
-    if (snake.head.x == fruit.x && snake.head.y == fruit.y) {
-        new_fruit();
-        eating = 1;
+    for (i = snake.n - 1; i > 0; i--) {
+        if (memcmp(&snake.tail[i], &snake.head, sizeof(point)) == 0) {
+            death();
+        }
     }
 
-    // draw snake and fruit
+    // draw snake
     BOX(snake.head.x, snake.head.y, 1);
     for (i = 0; i < snake.n; i++) {
         BOX(snake.tail[i].x, snake.tail[i].y, 1);
     }
+
+    // ate fruit??
+    if (snake.head.x == fruit.x && snake.head.y == fruit.y) {
+        new_fruit();
+        snake.n++;
+    }
+
     BOX(fruit.x, fruit.y, 2);
 
     vid_flip();
@@ -121,13 +139,6 @@ void init_palette() {
     pal_bg_mem[0] = RGB15(0, 0, 0);
     pal_bg_mem[1] = RGB15(31, 31, 31);
     pal_bg_mem[2] = RGB15(31, 0, 0);
-}
-
-void debugf() {
-    REG_DISPCNT= DCNT_MODE0 | DCNT_BG0;
-    tte_init_se_default(0, BG_CBB(0)|BG_SBB(31));
-    tte_init_con();
-    tte_printf("#{P:72,64}");
 }
 
 void init_rand() {
