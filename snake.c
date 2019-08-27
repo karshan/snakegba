@@ -1,28 +1,17 @@
 #include "string.h"
 #include "tonc.h"
-#define BOX(x, y, c) m4_rect(x * 5, y * 5, (x + 1) * 5, (y + 1) * 5, c)
-#define MAP_WIDTH  48
-#define MAP_HEIGHT 32
 
-// usage: debugf(); tte_printf("something: %d", something); while(1);
-void debugf() {
-    REG_DISPCNT= DCNT_MODE0 | DCNT_BG0;
-    tte_init_se_default(0, BG_CBB(0)|BG_SBB(31));
-    tte_init_con();
-    tte_printf("#{P:72,64}");
-}
+#include "util.h"
+#include "types.h"
 
-typedef enum {
-    left,
-    right,
-    up,
-    down
-} dir;
-
-typedef struct {
-    int x;
-    int y;
-} point;
+// MAP_WIDTH  * CELL_SIZE == SCREEN_WIDTH
+// MAP_HEIGHT * CELL_SIZE == SCREEN_HEIGHT
+#define CELL_SIZE 8
+#define MAP_WIDTH  (SCREEN_WIDTH/CELL_SIZE)
+#define MAP_HEIGHT (SCREEN_HEIGHT/CELL_SIZE)
+#define BOX(x, y, c) m4_rect(x * CELL_SIZE, y * CELL_SIZE, (x + 1) * CELL_SIZE, (y + 1) * CELL_SIZE, c)
+#define INITIAL_SNAKE_SIZE 4 // minimum 4 due to subcell rendering code (maybe 3 =D)
+#define MAX_SNAKE_SIZE 1024
 
 void move(point *p, dir d) {
     switch(d) {
@@ -45,12 +34,33 @@ void move(point *p, dir d) {
     }
 }
 
+void move_screen(point *p, dir d, int units) {
+    switch(d) {
+        case left:
+            p->x = p->x - units;
+            if (p->x < 0) p->x += SCREEN_WIDTH;
+            break;
+        case right:
+            p->x = p->x + units;
+            if (p->x >= SCREEN_WIDTH) p->x -= SCREEN_WIDTH;
+            break;
+        case up:
+            p->y = p->y - units;
+            if (p->y < 0) p->y += SCREEN_HEIGHT;
+            break;
+        case down:
+            p->y = p->y + units;
+            if (p->y >= SCREEN_HEIGHT) p->y -= SCREEN_HEIGHT;
+            break;
+    }
+}
+
 volatile struct {
     int dir;
     int idir; // last input
-    point head;
-    int n; // sizeof tail
-    point tail[1024];
+    point chunks[MAX_SNAKE_SIZE];
+    int head;
+    int size;
 } snake;
 
 volatile point fruit;
@@ -59,20 +69,25 @@ void new_fruit() {
     do {
         fruit.x = qran_range(0, MAP_WIDTH);
         fruit.y = qran_range(0, MAP_HEIGHT);
-    } while (fruit.x == snake.head.x && fruit.y == snake.head.y);
+    } while (fruit.x == snake.chunks[snake.head].x && fruit.y == snake.chunks[snake.head].y);
 }
 
 void init_game() {
-    snake.head.x = 24;
-    snake.head.y = 16;
+    int i;
+    snake.head = 0;
+    snake.size = INITIAL_SNAKE_SIZE;
+    for (i = 0; i < INITIAL_SNAKE_SIZE; i++) {
+        snake.chunks[i].x = MAP_WIDTH/2;
+        snake.chunks[i].y = MAP_HEIGHT/2;
+    }
     snake.dir = left;
-    snake.n = 0;
+    snake.idir = left;
     new_fruit();
 }
 
 void init_timers() {
-    // ~0.5s timer
-    REG_TM2D = -0x2000;
+    // ~0.8s/CELL_SIZE timer
+    REG_TM2D = -(0x3200/CELL_SIZE);
     REG_TM2CNT = TM_FREQ_1024 | TM_ENABLE;
 }
 
@@ -98,41 +113,68 @@ void death() {
     while(1);
 }
 
+u32 ticks = 0;
 void tick() {
-    int i;
-
-    snake.dir = snake.idir;
+    int i, j, pixels = ticks % CELL_SIZE;
+    point t;
 
     M4_CLEAR();
 
-    // move snake
-    for (i = snake.n - 1; i > 0; i--) {
-        snake.tail[i] = snake.tail[i - 1];
-    }
-    snake.tail[0] = snake.head;
-    move(&snake.head, snake.dir);
+    if (pixels == 0) {
+        // move snake
+        snake.head = snake.head - 1;
+        if (snake.head < 0) snake.head = MAX_SNAKE_SIZE - 1;
+        snake.chunks[snake.head] = snake.chunks[(snake.head + 1) % MAX_SNAKE_SIZE];
+        move(&snake.chunks[snake.head], snake.dir);
 
-    for (i = snake.n - 1; i > 0; i--) {
-        if (memcmp(&snake.tail[i], &snake.head, sizeof(point)) == 0) {
-            death();
+        for (i = 1, j = (snake.head + 1) % MAX_SNAKE_SIZE; i < snake.size; i++, j = (j + 1) % MAX_SNAKE_SIZE) {
+            if (memcmp(&snake.chunks[j], &snake.chunks[snake.head], sizeof(point)) == 0) {
+                death();
+            }
         }
+
+        snake.dir = snake.idir;
     }
 
-    // draw snake
-    BOX(snake.head.x, snake.head.y, 1);
-    for (i = 0; i < snake.n; i++) {
-        BOX(snake.tail[i].x, snake.tail[i].y, 1);
+    // draw snake except last chunk
+    for (i = 0, j = snake.head; i < snake.size - 1; i++, j = (j + 1) % MAX_SNAKE_SIZE) {
+        BOX(snake.chunks[j].x, snake.chunks[j].y, 1);
     }
 
-    // ate fruit??
-    if (snake.head.x == fruit.x && snake.head.y == fruit.y) {
-        new_fruit();
-        snake.n++;
+    t.x = snake.chunks[snake.head].x * CELL_SIZE;
+    t.y = snake.chunks[snake.head].y * CELL_SIZE;
+    move_screen(&t, snake.dir, pixels);
+    m4_rect(t.x, t.y, t.x + CELL_SIZE, t.y + CELL_SIZE, 1);
+
+    i = (snake.head + snake.size - 1) % MAX_SNAKE_SIZE;
+    j = (snake.head + snake.size - 2) % MAX_SNAKE_SIZE;
+    t.x = snake.chunks[i].x * CELL_SIZE;
+    t.y = snake.chunks[i].y * CELL_SIZE;
+
+    if ((snake.chunks[i].x + 1) % MAP_WIDTH == snake.chunks[j].x) {
+        move_screen(&t, right, pixels);
+    } else if ((snake.chunks[j].x + 1) % MAP_WIDTH == snake.chunks[i].x) {
+        move_screen(&t, left, pixels);
+    } else if ((snake.chunks[i].y + 1) % MAP_WIDTH == snake.chunks[j].y) {
+        move_screen(&t, down, pixels);
+    } else if ((snake.chunks[j].y + 1) % MAP_WIDTH == snake.chunks[i].y) {
+        move_screen(&t, up, pixels);
+    }
+    m4_rect(t.x, t.y, t.x + CELL_SIZE, t.y + CELL_SIZE, 1);
+
+    if (pixels == 0) {
+        // ate fruit??
+        if (snake.chunks[snake.head].x == fruit.x && snake.chunks[snake.head].y == fruit.y) {
+            new_fruit();
+            if (snake.size == MAX_SNAKE_SIZE) abort();
+            snake.size++;
+        }
     }
 
     BOX(fruit.x, fruit.y, 2);
 
     vid_flip();
+    ticks++;
 }
 
 void init_palette() {

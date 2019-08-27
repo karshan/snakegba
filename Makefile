@@ -7,7 +7,7 @@ CFLAGS  := -mthumb-interwork -mthumb -O2 -Wall -fno-strict-aliasing -Itonclib/in
 LDFLAGS := -mthumb-interwork -mthumb -specs=gba.specs tonclib/lib/libtonc.a
 
 TARGET := snake
-OBJS   := snake.o
+OBJS   := snake.o util.o
 
 build: $(TARGET).gba
 
@@ -23,8 +23,8 @@ $(TARGET).elf : $(OBJS)
 # Compile (step 1)
 $(OBJS) : %.o : %.c
 	$(CC) -c $< $(CFLAGS) -o $@
-		
-clean : 
+
+clean :
 	@rm -fv *.gba
 	@rm -fv *.elf
 	@rm -fv *.o
