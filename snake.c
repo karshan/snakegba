@@ -3,15 +3,18 @@
 
 #include "util.h"
 #include "types.h"
+#include "berry.h"
+#include "tae.h"
+#include "shared.h"
 
-// MAP_WIDTH  * CELL_SIZE == SCREEN_WIDTH
-// MAP_HEIGHT * CELL_SIZE == SCREEN_HEIGHT
 #define CELL_SIZE 8
 #define MAP_WIDTH  (SCREEN_WIDTH/CELL_SIZE)
 #define MAP_HEIGHT (SCREEN_HEIGHT/CELL_SIZE)
 #define BOX(x, y, c) m4_rect(x * CELL_SIZE, y * CELL_SIZE, (x + 1) * CELL_SIZE, (y + 1) * CELL_SIZE, c)
 #define INITIAL_SNAKE_SIZE 4 // minimum 4 due to subcell rendering code (maybe 3 =D)
 #define MAX_SNAKE_SIZE 1024
+
+#define PAL_SNAKE 18
 
 void move(point *p, dir d) {
     switch(d) {
@@ -31,6 +34,26 @@ void move(point *p, dir d) {
             p->y = p->y + 1;
             if (p->y >= MAP_HEIGHT) p->y = 0;
             break;
+    }
+}
+
+void renderBitmap(u32 *bmp, int w, int h, int startx, int starty) {
+    int x, y;
+    int bmp_i = 0;
+    u16 *dst;
+    u32 p4;
+    for (y = starty; y < starty + h; y++) {
+        x = startx;
+        // TODO: this won't work if w % 4 != 0
+        while (x < startx + w) {
+            p4 = bmp[bmp_i++];
+            dst = &vid_page[(y*M4_WIDTH+x)>>1];
+            *dst++ = p4 & 0xffff;
+            x += 2;
+            if (x >= startx + w) break;
+            *dst++ = (p4 & 0xffff0000) >> 16;
+            x += 2;
+        }
     }
 }
 
@@ -144,16 +167,16 @@ void tick() {
     }
 
     // draw fruit and snake except last chunk
-    BOX(fruit.x, fruit.y, 2);
+    renderBitmap(taeBitmap, 14, 15, fruit.x * CELL_SIZE - 2, fruit.y * CELL_SIZE - 4);
     for (i = 0, j = snake.head; i < snake.size - 1; i++, j = (j + 1) % MAX_SNAKE_SIZE) {
-        BOX(snake.chunks[j].x, snake.chunks[j].y, 1);
+        BOX(snake.chunks[j].x, snake.chunks[j].y, PAL_SNAKE);
     }
 
     // draw snake head
     t.x = snake.chunks[snake.head].x * CELL_SIZE;
     t.y = snake.chunks[snake.head].y * CELL_SIZE;
     move_screen(&t, snake.dir, pixels);
-    m4_rect(t.x, t.y, t.x + CELL_SIZE, t.y + CELL_SIZE, 1);
+    m4_rect(t.x, t.y, t.x + CELL_SIZE, t.y + CELL_SIZE, PAL_SNAKE);
 
     // draw snake last chunk
 
@@ -163,7 +186,7 @@ void tick() {
     t = snake.chunks[snake.head];
     move(&t, snake.dir);
     if (t.x == fruit.x && t.y == fruit.y) {
-        BOX(snake.chunks[i].x, snake.chunks[i].y, 1);
+        BOX(snake.chunks[i].x, snake.chunks[i].y, PAL_SNAKE);
     } else {
         t.x = snake.chunks[i].x * CELL_SIZE;
         t.y = snake.chunks[i].y * CELL_SIZE;
@@ -177,7 +200,7 @@ void tick() {
         } else if ((snake.chunks[j].y + 1) % MAP_WIDTH == snake.chunks[i].y) {
             move_screen(&t, up, pixels);
         }
-        m4_rect(t.x, t.y, t.x + CELL_SIZE, t.y + CELL_SIZE, 1);
+        m4_rect(t.x, t.y, t.x + CELL_SIZE, t.y + CELL_SIZE, PAL_SNAKE);
     }
 
     vid_flip();
@@ -185,9 +208,11 @@ void tick() {
 }
 
 void init_palette() {
-    pal_bg_mem[0] = RGB15(0, 0, 0);
-    pal_bg_mem[1] = RGB15(31, 31, 31);
-    pal_bg_mem[2] = RGB15(31, 0, 0);
+    int i;
+    for (i = 0; i < 18; i++) {
+        pal_bg_mem[i] = sharedPal[i];
+    }
+    pal_bg_mem[PAL_SNAKE] = RGB15(31, 31, 31);
 }
 
 void init_rand() {

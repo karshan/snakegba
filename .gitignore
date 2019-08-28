@@ -1,3 +1,9 @@
 *.gba
 *.elf
 *.o
+berry.c
+berry.h
+tae.c
+tae.h
+shared.c
+shared.h
