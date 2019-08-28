@@ -86,8 +86,8 @@ void init_game() {
 }
 
 void init_timers() {
-    // ~0.8s/CELL_SIZE timer
-    REG_TM2D = -(0x3200/CELL_SIZE);
+    // ~0.2s/CELL_SIZE timer
+    REG_TM2D = -(0x800/CELL_SIZE);
     REG_TM2CNT = TM_FREQ_1024 | TM_ENABLE;
 }
 
@@ -134,36 +134,8 @@ void tick() {
         }
 
         snake.dir = snake.idir;
-    }
 
-    // draw snake except last chunk
-    for (i = 0, j = snake.head; i < snake.size - 1; i++, j = (j + 1) % MAX_SNAKE_SIZE) {
-        BOX(snake.chunks[j].x, snake.chunks[j].y, 1);
-    }
-
-    t.x = snake.chunks[snake.head].x * CELL_SIZE;
-    t.y = snake.chunks[snake.head].y * CELL_SIZE;
-    move_screen(&t, snake.dir, pixels);
-    m4_rect(t.x, t.y, t.x + CELL_SIZE, t.y + CELL_SIZE, 1);
-
-    i = (snake.head + snake.size - 1) % MAX_SNAKE_SIZE;
-    j = (snake.head + snake.size - 2) % MAX_SNAKE_SIZE;
-    t.x = snake.chunks[i].x * CELL_SIZE;
-    t.y = snake.chunks[i].y * CELL_SIZE;
-
-    if ((snake.chunks[i].x + 1) % MAP_WIDTH == snake.chunks[j].x) {
-        move_screen(&t, right, pixels);
-    } else if ((snake.chunks[j].x + 1) % MAP_WIDTH == snake.chunks[i].x) {
-        move_screen(&t, left, pixels);
-    } else if ((snake.chunks[i].y + 1) % MAP_WIDTH == snake.chunks[j].y) {
-        move_screen(&t, down, pixels);
-    } else if ((snake.chunks[j].y + 1) % MAP_WIDTH == snake.chunks[i].y) {
-        move_screen(&t, up, pixels);
-    }
-    m4_rect(t.x, t.y, t.x + CELL_SIZE, t.y + CELL_SIZE, 1);
-
-    if (pixels == 0) {
-        // ate fruit??
+        // if (ate fruit)
         if (snake.chunks[snake.head].x == fruit.x && snake.chunks[snake.head].y == fruit.y) {
             new_fruit();
             if (snake.size == MAX_SNAKE_SIZE) abort();
@@ -171,7 +143,42 @@ void tick() {
         }
     }
 
+    // draw fruit and snake except last chunk
     BOX(fruit.x, fruit.y, 2);
+    for (i = 0, j = snake.head; i < snake.size - 1; i++, j = (j + 1) % MAX_SNAKE_SIZE) {
+        BOX(snake.chunks[j].x, snake.chunks[j].y, 1);
+    }
+
+    // draw snake head
+    t.x = snake.chunks[snake.head].x * CELL_SIZE;
+    t.y = snake.chunks[snake.head].y * CELL_SIZE;
+    move_screen(&t, snake.dir, pixels);
+    m4_rect(t.x, t.y, t.x + CELL_SIZE, t.y + CELL_SIZE, 1);
+
+    // draw snake last chunk
+
+    // if we are about to eat, draw the last chunk in full
+    i = (snake.head + snake.size - 1) % MAX_SNAKE_SIZE;
+    j = (snake.head + snake.size - 2) % MAX_SNAKE_SIZE;
+    t = snake.chunks[snake.head];
+    move(&t, snake.dir);
+    if (t.x == fruit.x && t.y == fruit.y) {
+        BOX(snake.chunks[i].x, snake.chunks[i].y, 1);
+    } else {
+        t.x = snake.chunks[i].x * CELL_SIZE;
+        t.y = snake.chunks[i].y * CELL_SIZE;
+
+        if ((snake.chunks[i].x + 1) % MAP_WIDTH == snake.chunks[j].x) {
+            move_screen(&t, right, pixels);
+        } else if ((snake.chunks[j].x + 1) % MAP_WIDTH == snake.chunks[i].x) {
+            move_screen(&t, left, pixels);
+        } else if ((snake.chunks[i].y + 1) % MAP_WIDTH == snake.chunks[j].y) {
+            move_screen(&t, down, pixels);
+        } else if ((snake.chunks[j].y + 1) % MAP_WIDTH == snake.chunks[i].y) {
+            move_screen(&t, up, pixels);
+        }
+        m4_rect(t.x, t.y, t.x + CELL_SIZE, t.y + CELL_SIZE, 1);
+    }
 
     vid_flip();
     ticks++;
