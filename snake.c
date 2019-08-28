@@ -14,7 +14,8 @@
 #define INITIAL_SNAKE_SIZE 4 // minimum 4 due to subcell rendering code (maybe 3 =D)
 #define MAX_SNAKE_SIZE 1024
 
-#define PAL_SNAKE 18
+#define SHARED_PAL_SIZE 14
+#define PAL_SNAKE (SHARED_PAL_SIZE + 1)
 
 void move(point *p, dir d) {
     switch(d) {
@@ -37,7 +38,7 @@ void move(point *p, dir d) {
     }
 }
 
-void renderBitmap(u32 *bmp, int w, int h, int startx, int starty) {
+void renderBitmap(const u32 *bmp, int w, int h, int startx, int starty) {
     int x, y;
     int bmp_i = 0;
     u16 *dst;
@@ -78,7 +79,7 @@ void move_screen(point *p, dir d, int units) {
     }
 }
 
-volatile struct {
+struct {
     int dir;
     int idir; // last input
     point chunks[MAX_SNAKE_SIZE];
@@ -209,7 +210,7 @@ void tick() {
 
 void init_palette() {
     int i;
-    for (i = 0; i < 18; i++) {
+    for (i = 0; i < SHARED_PAL_SIZE; i++) {
         pal_bg_mem[i] = sharedPal[i];
     }
     pal_bg_mem[PAL_SNAKE] = RGB15(31, 31, 31);
