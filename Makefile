@@ -7,10 +7,12 @@ CFLAGS  := -mthumb-interwork -mthumb -O2 -Wall -fno-strict-aliasing -Itonclib/in
 LDFLAGS := -mthumb-interwork -mthumb -specs=gba.specs tonclib/lib/libtonc.a
 
 TARGET := snake
-BMPS   := berry.bmp tae.bmp
-C_BMPS  := $(foreach bmp, $(BMPS), $(basename $(bmp)).c) shared.c
-H_BMPS  := $(foreach bmp, $(BMPS), $(basename $(bmp)).h) shared.h
-O_BMPS  := $(foreach bmp, $(BMPS), $(basename $(bmp)).o) shared.o
+BMP_DIR := gfx
+BMPS   := berry.bmp tae.bmp snakehead.bmp snakebody.bmp
+F_BMPS  := $(foreach bmp, $(BMPS), $(BMP_DIR)/$(bmp))
+C_BMPS  := $(foreach bmp, $(BMPS), $(BMP_DIR)/$(basename $(bmp)).c) $(BMP_DIR)/shared.c
+H_BMPS  := $(foreach bmp, $(BMPS), $(BMP_DIR)/$(basename $(bmp)).h) $(BMP_DIR)/shared.h
+O_BMPS  := $(foreach bmp, $(BMPS), $(BMP_DIR)/$(basename $(bmp)).o) $(BMP_DIR)/shared.o
 OBJS   := snake.o util.o $(O_BMPS)
 
 build: $(TARGET).gba
@@ -24,17 +26,19 @@ $(TARGET).gba : $(TARGET).elf
 $(TARGET).elf : $(OBJS)
 	$(LD) $^ $(LDFLAGS) -o $@
 
+$(OBJS): $(C_BMPS)
+
 # Compile (step 2)
-$(OBJS) : %.o : %.c $(C_BMPS)
+$(OBJS) : %.o : %.c
 	$(CC) -c $< $(CFLAGS) -o $@
 
 # Generate C files for bitmaps (step 1)
-$(C_BMPS) : $(BMPS)
-	grit $(BMPS) -ftc -gb -pn 32 -pS -O shared -gB8
+$(C_BMPS) : $(F_BMPS)
+	cd gfx && grit $(BMPS) -ftc -gb -pS -O shared -gB8
 
 clean :
 	@rm -fv *.gba
 	@rm -fv *.elf
-	@rm -fv *.o
+	@rm -fv $(OBJS)
 	@rm -fv $(C_BMPS)
 	@rm -fv $(H_BMPS)
